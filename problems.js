@@ -52,7 +52,6 @@ export const problems = [
   P(6,'Largest Rectangle in Histogram','Stack','Find the largest rectangular area formed by adjacent bars in a histogram. Every bar has width 1.','One line of nonnegative heights.','Maximum area.',[['2 1 5 6 2 3','10'],['2 4','4'],['1 1 1','3']],'A monotonic stack reveals each bar’s widest span.'),
 ];
 export const weekdays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-export const difficulty = ['Warm-up','Foundation','Momentum','Technique','Deep dive','Stretch','Boss level'];
 export function problemForDate(date) {
   const day = (date.getDay() + 6) % 7;
   const localDay = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());

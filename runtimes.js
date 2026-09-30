@@ -109,7 +109,7 @@ export function template(problem, contract, language) {
   switch(language) {
     case 'javascript': return `/**\n * ${problem.title}\n * ${contract.params.map(([name,type])=>`${name}: ${jsType(type)}`).join(' · ')}\n * Returns: ${jsType(result)}\n */\nfunction ${contract.name}(${args}) {\n  // Write your solution here.\n}\n`;
     case 'python': return `# ${problem.title}\n# ${contract.params.map(([name,type])=>`${name}: ${pyType(type)}`).join(' · ')}\n# Returns: ${pyType(result)}\ndef ${contract.name}(${args}):\n    # Write your solution here.\n    pass\n`;
-    case 'cpp': return `#include <bits/stdc++.h>\nusing namespace std;\n\n// ${problem.title}\n${types.cpp[result]} ${contract.name}(${contract.params.map(([name,type])=>`${types.cpp[type]} ${name}`).join(', ')}) {\n    // Write your solution here.\n    return ${defaults.cpp[result]};\n}\n`;
+    case 'cpp': return `#include <vector>\n#include <string>\nusing namespace std;\n\n// ${problem.title}\n${types.cpp[result]} ${contract.name}(${contract.params.map(([name,type])=>`${types.cpp[type]} ${name}`).join(', ')}) {\n    // Write your solution here.\n    return ${defaults.cpp[result]};\n}\n`;
     case 'c': return `${cPreamble}\n// ${problem.title}\n${types.c[result]} ${contract.name}(${contract.params.map(([name,type])=>`${types.c[type]} ${name}`).join(', ')}) {\n    // Arrays have .data and .size; matrices have .rows and .size.\n    // Write your solution here.\n    return ${defaults.c[result]};\n}\n`;
     case 'java': return `import java.util.*;\n\nclass Main {\n    // ${problem.title}\n    static ${types.java[result]} ${contract.name}(${contract.params.map(([name,type])=>`${types.java[type]} ${name}`).join(', ')}) {\n        // Write your solution here.\n        return ${defaults.java[result]};\n    }\n\n    public static void main(String[] args) {\n        // Tests run here when you press Check.\n    }\n}\n`;
     case 'rust': return `// ${problem.title}\nfn ${runtimeName(contract,language)}(${contract.params.map(([name,type])=>`${name}: ${types.rust[type]}`).join(', ')}) -> ${types.rust[result]} {\n    // Write your solution here.\n    ${defaults.rust[result]}\n}\n`;
@@ -165,7 +165,7 @@ export function runnable(problem,contract,language,code,onlyExample=false) {
       const expected=cppLiteral(c.expected,result);
       return `    try { bool pass = (${contract.name}(${args}) == ${expected}); cout << "CASE ${i+1} " << (pass ? "PASS" : "FAIL") << '\\n'; } catch (...) { cout << "CASE ${i+1} ERROR\\n"; }`;
     }).join('\n');
-    return `${code}\nvector<int> makeSequence(int length, int start, int step) { vector<int> values(length); for (int i=0; i<length; i++) values[i]=start+i*step; return values; }\nint main() {\n${tests}${timed}\n    return 0;\n}`;
+    return `${code}\n#include <vector>\n#include <string>\n#include <iostream>\n#include <chrono>\nusing namespace std;\nvector<int> makeSequence(int length, int start, int step) { vector<int> values(length); for (int i=0; i<length; i++) values[i]=start+i*step; return values; }\nint main() {\n${tests}${timed}\n    return 0;\n}`;
   }
   if(language==='c') {
     const tests=cases.map((c,i)=>{
