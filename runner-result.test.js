@@ -26,3 +26,9 @@ test('passing tests stay successful', () => {
   const result=readRunResult({stdout:'CASE 1 PASS\nCASE 2 PASS\n'},2);
   assert.equal(result.success,true);
 });
+
+test('failed cases preserve the reported actual value and program output', () => {
+  const result=readRunResult({stdout:'CASE 1 FAIL | actual [1,0,0]\ndebug: checked the stack\n'},1);
+  assert.equal(result.cases[0].detail,'actual [1,0,0]');
+  assert.equal(result.diagnostics,'debug: checked the stack');
+});

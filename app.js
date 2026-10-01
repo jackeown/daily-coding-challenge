@@ -109,13 +109,13 @@ function finishError(){
   if(!pending)return;
   const job=pending;pending=null;lateJob=job;clearTimeout(timer);setBusy(false);
   restoreCode=job.source;
-  notice(job.phase==='populating'?'The editor did not start the test run. Your solution is saved.':'The compiler did not return a result. Check its console for build or run errors; your solution is saved.','error');
+  notice(job.phase==='populating'?'The editor did not start the test run. Your solution is saved.':'The runner did not return a result. Your solution is saved; try again.','error');
   if(job.source){const button=document.createElement('button');button.type='button';button.className='secondary restore-button';button.textContent='Restore my solution';button.addEventListener('click',()=>{lateJob=null;postCode(job.source);button.remove();});$('feedback').append(button);}
 }
 function appendDiagnostics(value,open){
   if(!value)return;
   const details=document.createElement('details');details.className='diagnostics';details.open=open;
-  const summary=document.createElement('summary');summary.textContent='Compiler and runner output';
+  const summary=document.createElement('summary');summary.textContent='Program and compiler output';
   const output=document.createElement('pre');output.textContent=value.length>40000?`${value.slice(0,40000)}\n… output truncated`:value;
   details.append(summary,output);$('feedback').append(details);
 }
@@ -139,17 +139,19 @@ function finishRun(result){
     for(const resultCase of outcome.cases.filter(c=>c.status!=='PASS')){
       const test=typedCases(current.problem)[resultCase.number-1];
       const detail=document.createElement('pre');detail.className='failure-detail';
-      const actual=resultCase.detail;
-      detail.textContent=test?`Test ${resultCase.number} · arguments: ${JSON.stringify(test.args)}\nExpected: ${JSON.stringify(test.expected)}${actual?'\n'+actual:''}`:`Timed test · 50,000 items · ${performanceCase(current.problem)?.budgetMs/1000} second limit${actual?'\nElapsed: '+actual:''}`;
+      const reported=resultCase.detail;
+      const actual=reported.match(/^actual(?:\s+(.*))?$/i)?.[1];
+      const detailLine=resultCase.status==='FAIL'?`\nActual: ${actual??(reported||'not reported')}`:resultCase.status==='ERROR'?`\nError: ${reported||'unknown error'}`:reported?`\nElapsed: ${reported}`:'';
+      detail.textContent=test?`Test ${resultCase.number} · arguments: ${JSON.stringify(test.args)}\nExpected: ${JSON.stringify(test.expected)}${detailLine}`:`Timed test · 50,000 items · ${performanceCase(current.problem)?.budgetMs/1000} second limit${detailLine}`;
       $('feedback').append(detail);
     }
   }
-  appendDiagnostics(outcome.diagnostics,!outcome.success);
+  appendDiagnostics(outcome.diagnostics,true);
   restoreCode=job.source;postCode(job.source);
 }
 window.addEventListener('message',event=>{if(event.origin!==origin||event.source!==frame.contentWindow)return;const data=event.data;if(!data||typeof data!=='object')return;if(data.action==='runComplete'){if(!pending&&lateJob&&lateJob.language===language&&lateJob.date===dateKey(selected)){pending=lateJob;lateJob=null;}finishRun(data.result??data);return;}if(data.action!=='change'||!data.language)return;const nextLanguage=normalizedLanguage(data.language);if(nextLanguage!==language)return;const incoming=data.files?.[0]?.content;const fileName=data.files?.[0]?.name;if(typeof incoming!=='string')return;if(pending?.mode==='tests'){if(pending.phase==='populating'&&incoming===pending.generated){pending.phase='running';frame.contentWindow?.postMessage({eventType:'triggerRun'},origin);}return;}if(restoreCode!==null){if(incoming===restoreCode){code=incoming;restoreCode=null;saveDraft();}return;}if(waitingForCode!==null){if(incoming===waitingForCode){code=incoming;waitingForCode=null;saveDraft();}return;}activeFileName=fileName||activeFileName;code=incoming;saveDraft();});
 function showDialog(kind){const content=$('dialog-body');if(kind==='sources'){content.innerHTML='<h2>About the problems</h2><p>These 42 prompts and their visible tests were written for this project. Most adapt well-known LeetCode interview patterns; the linked problem under each challenge identifies its inspiration. They are not copied from LeetCode or pulled from its daily challenge feed.</p><p>The rotation lasts six weeks and then repeats. This is a small curated bank, not the full LeetCode library.</p><p>Code runs in the <a href="https://onecompiler.com/apis/embed-editor" target="_blank" rel="noopener noreferrer">OneCompiler embedded editor</a>, which its provider currently describes as free to embed with unlimited runs. The site has no backend or account. Guided tests cover Python, C++, C, Java, JavaScript, and Rust.</p>';}else{content.innerHTML='<h2>How it works</h2><p>There is one problem per day. The six-week set repeats. Complete the named function in the editor, then use Run example or Check all tests. Some challenges include a large input whose function call must finish within 1.2 seconds; the page tells you when one applies.</p><p>The editor runs through OneCompiler’s free embed. Your drafts and solved days are saved only in this browser. Choose Python, C++, C, Java, JavaScript, or Rust above the editor; each has guided tests.</p>';} $('about-dialog').showModal();}
-function editorSrc(){const chosen=language||'javascript';const mobile=window.matchMedia('(max-width: 760px)').matches;return `${origin}/embed/${encodeURIComponent(chosen)}?listenToEvents=true&codeChangeEvent=true&hideLanguageSelection=true&hideNew=true&hideTitle=true&hideRun=true&hideEditorOptions=true&theme=${theme}${mobile?'&hideResult=true':''}`;}
+function editorSrc(){const chosen=language||'javascript';return `${origin}/embed/${encodeURIComponent(chosen)}?listenToEvents=true&codeChangeEvent=true&hideLanguageSelection=true&hideNew=true&hideTitle=true&hideRun=true&hideResult=true&hideEditorOptions=true&theme=${theme}`;}
 function updateThemeButton(){$('theme-button').textContent=theme==='dark'?'☼  Light':'◐  Dark';$('theme-button').setAttribute('aria-label',theme==='dark'?'Switch to light mode':'Switch to dark mode');}
 function toggleTheme(){if(pending)return;saveDraft();lateJob=null;restoreCode=null;theme=theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('dailycode:theme',theme);}catch{}updateThemeButton();waitingForCode=code;frame.src=editorSrc();}
 $('today-date').textContent=format(today,{month:'long',day:'numeric',year:'numeric'});
@@ -171,7 +173,7 @@ code=draftOrTemplate();
 waitingForCode=code;
 updateLanguageUI();
 updateThemeButton();
-if(theme==='dark'||window.matchMedia('(max-width: 760px)').matches)frame.src=editorSrc();
+frame.src=editorSrc();
 function handshake(){
   const requested=code;
   let tries=0;

@@ -65,6 +65,56 @@ bool equalStringMatrix(StringMatrix a, StringMatrix b) {
     for (int i = 0; i < a.size; i++) if (!equalStringArray(a.rows[i], b.rows[i])) return false;
     return true;
 }
+void printJsonString(const char *value) {
+    if (!value) { printf("null"); return; }
+    putchar('"');
+    for (const unsigned char *p = (const unsigned char *)value; *p; p++) {
+        if (*p == '"' || *p == '\\\\') { putchar('\\\\'); putchar(*p); }
+        else if (*p == '\\n') printf("\\\\n");
+        else if (*p == '\\r') printf("\\\\r");
+        else if (*p == '\\t') printf("\\\\t");
+        else putchar(*p);
+    }
+    putchar('"');
+}
+void printIntArray(IntArray value) {
+    putchar('[');
+    for (int i = 0; i < value.size; i++) { if (i) putchar(','); printf("%d", value.data[i]); }
+    putchar(']');
+}
+void printStringArray(StringArray value) {
+    putchar('[');
+    for (int i = 0; i < value.size; i++) { if (i) putchar(','); printJsonString(value.data[i]); }
+    putchar(']');
+}
+void printIntMatrix(IntMatrix value) {
+    putchar('[');
+    for (int i = 0; i < value.size; i++) { if (i) putchar(','); printIntArray(value.rows[i]); }
+    putchar(']');
+}
+void printStringMatrix(StringMatrix value) {
+    putchar('[');
+    for (int i = 0; i < value.size; i++) { if (i) putchar(','); printStringArray(value.rows[i]); }
+    putchar(']');
+}
+`;
+const cPrint = {n:'printf("%d", __actual);',f:'printf("%.17g", __actual);',b:'printf("%s", __actual ? "true" : "false");',s:'printJsonString(__actual);',N:'printIntArray(__actual);',S:'printStringArray(__actual);',M:'printIntMatrix(__actual);',G:'printStringMatrix(__actual);'};
+const cppDisplay = `
+template<typename T> string showValue(const vector<T>& value);
+template<typename T> string showValue(const T& value) {
+    ostringstream out; out << boolalpha << value; return out.str();
+}
+string showValue(const string& value) {
+    ostringstream out; out << quoted(value); return out.str();
+}
+template<typename T> string showValue(const vector<T>& value) {
+    string text = "[";
+    for (size_t i = 0; i < value.size(); i++) {
+        if (i) text += ",";
+        text += showValue(value[i]);
+    }
+    return text + "]";
+}
 `;
 function resultType(problem) {
   if(problem.title==='Median of Two Sorted Arrays') return 'f';
@@ -163,15 +213,15 @@ export function runnable(problem,contract,language,code,onlyExample=false) {
     const tests=cases.map((c,i)=>{
       const args=c.args.map((arg,j)=>cppLiteral(arg,contract.params[j][1])).join(', ');
       const expected=cppLiteral(c.expected,result);
-      return `    try { bool pass = (${contract.name}(${args}) == ${expected}); cout << "CASE ${i+1} " << (pass ? "PASS" : "FAIL") << '\\n'; } catch (...) { cout << "CASE ${i+1} ERROR\\n"; }`;
+      return `    try { auto actual = ${contract.name}(${args}); bool pass = (actual == ${expected}); cout << "CASE ${i+1} " << (pass ? "PASS" : "FAIL"); if (!pass) cout << " | actual " << showValue(actual); cout << '\\n'; } catch (...) { cout << "CASE ${i+1} ERROR\\n"; }`;
     }).join('\n');
-    return `${code}\n#include <vector>\n#include <string>\n#include <iostream>\n#include <chrono>\nusing namespace std;\nvector<int> makeSequence(int length, int start, int step) { vector<int> values(length); for (int i=0; i<length; i++) values[i]=start+i*step; return values; }\nint main() {\n${tests}${timed}\n    return 0;\n}`;
+    return `${code}\n#include <vector>\n#include <string>\n#include <iostream>\n#include <chrono>\n#include <sstream>\n#include <iomanip>\nusing namespace std;\n${cppDisplay}\nvector<int> makeSequence(int length, int start, int step) { vector<int> values(length); for (int i=0; i<length; i++) values[i]=start+i*step; return values; }\nint main() {\n${tests}${timed}\n    return 0;\n}`;
   }
   if(language==='c') {
     const tests=cases.map((c,i)=>{
       const args=c.args.map((arg,j)=>cLiteral(arg,contract.params[j][1])).join(', ');
       const expected=cLiteral(c.expected,result);
-      return `    { ${types.c[result]} __actual = ${contract.name}(${args}); ${types.c[result]} __expected = ${expected}; bool __pass = ${cEquals[result]}; printf("CASE ${i+1} %s\\n", __pass ? "PASS" : "FAIL"); }`;
+      return `    { ${types.c[result]} __actual = ${contract.name}(${args}); ${types.c[result]} __expected = ${expected}; bool __pass = ${cEquals[result]}; printf("CASE ${i+1} %s", __pass ? "PASS" : "FAIL"); if (!__pass) { printf(" | actual "); ${cPrint[result]} } printf("\\n"); }`;
     }).join('\n');
     return `#include <stdlib.h>\n#include <time.h>\n${code}\n${cComparators}\nint main(void) {\n${tests}${timed}\n    return 0;\n}`;
   }
@@ -179,16 +229,16 @@ export function runnable(problem,contract,language,code,onlyExample=false) {
     const tests=cases.map((c,i)=>{
       const args=c.args.map((arg,j)=>javaLiteral(arg,contract.params[j][1])).join(', ');
       const expected=javaLiteral(c.expected,result);
-      return `        try { boolean pass = Objects.deepEquals(${contract.name}(${args}), ${expected}); System.out.println("CASE ${i+1} " + (pass ? "PASS" : "FAIL")); } catch (Exception error) { System.out.println("CASE ${i+1} ERROR " + error.getMessage()); }`;
+      return `        try { ${types.java[result]} actual = ${contract.name}(${args}); boolean pass = Objects.deepEquals(actual, ${expected}); System.out.println("CASE ${i+1} " + (pass ? "PASS" : "FAIL | actual " + showActual(actual))); } catch (Exception error) { System.out.println("CASE ${i+1} ERROR | " + error.getMessage()); }`;
     }).join('\n');
     const withTests=code.replace(/\/\/ Tests run here when you press Check\./,tests+timed);
-    return withTests.replace(/\n}\s*$/,`\n    static int[] makeRepeat(int length, int value) { int[] values = new int[length]; Arrays.fill(values, value); return values; }\n    static int[] makeSequence(int length, int start, int step) { int[] values = new int[length]; for (int i=0; i<length; i++) values[i]=start+i*step; return values; }\n}`);
+    return withTests.replace(/\n}\s*$/,`\n    static String showActual(Object value) { if (value instanceof String) return "\\\"" + value + "\\\""; if (value != null && value.getClass().isArray()) { String text = Arrays.deepToString(new Object[]{value}); return text.substring(1, text.length()-1); } return String.valueOf(value); }\n    static int[] makeRepeat(int length, int value) { int[] values = new int[length]; Arrays.fill(values, value); return values; }\n    static int[] makeSequence(int length, int start, int step) { int[] values = new int[length]; for (int i=0; i<length; i++) values[i]=start+i*step; return values; }\n}`);
   }
   if(language==='rust') {
     const tests=cases.map((c,i)=>{
       const args=c.args.map((arg,j)=>rustLiteral(arg,contract.params[j][1])).join(', ');
       const expected=rustLiteral(c.expected,result);
-      return `    if ${runtimeName(contract,language)}(${args}) == ${expected} { println!("CASE ${i+1} PASS"); } else { println!("CASE ${i+1} FAIL"); }`;
+      return `    { let actual = ${runtimeName(contract,language)}(${args}); if actual == ${expected} { println!("CASE ${i+1} PASS"); } else { println!("CASE ${i+1} FAIL | actual {:?}", actual); } }`;
     }).join('\n');
     return `#![allow(non_snake_case, unused_variables)]\n${code}\nfn main() {\n${tests}${timed}\n}`;
   }
